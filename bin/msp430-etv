@@ -20,14 +20,48 @@ def measure_data(time):
 
 	return res.stdout
 
+def show_help():
+	print('''msp430-etv - MSP430 EnergyTrace Visualizer
+
+USAGE
+
+msp430-etv [--load <file> | <measurement duration>] [--save <file>]
+	[--skip <count>] [--plot] [--stat]
+
+DESCRIPTION
+
+msp430-etv takes energy measurements from an MSP430 Launchpad or similar device
+using MSP430 EnergyTrace technology. Measurements can be taken directly (by
+specifying <measurement duration> in seconds) or loaded from a logfile using
+--load <file>. Data can be plotted or aggregated on stdout.
+
+OPTIONS
+
+  --load <file>
+    Load data from <file>
+  --save <file>
+    Save measurement data in <file>
+  --skip <count>
+    Skip <count> data samples. This is useful to avoid startup code
+    influencing the results of a long-running measurement
+  --plot
+    Show power/time plot
+  --stat
+    Show mean voltage, current, and power as well as total energy consumption.
+	''')
+
 if __name__ == '__main__':
 	try:
-		optspec = ('load= save= skip= plot stat')
+		optspec = ('help load= save= skip= plot stat')
 		raw_opts, args = getopt.getopt(sys.argv[1:], "", optspec.split(' '))
 
 		for option, parameter in raw_opts:
 			optname = re.sub(r'^--', '', option)
 			opt[optname] = parameter
+
+		if 'help' in opt:
+			show_help()
+			sys.exit(0)
 
 		if not 'load' in opt:
 			duration = int(args[0])
