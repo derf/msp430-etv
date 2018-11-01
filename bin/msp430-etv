@@ -26,7 +26,7 @@ def show_help():
 USAGE
 
 msp430-etv [--load <file> | <measurement duration>] [--save <file>]
-	[--skip <count>] [--plot] [--stat]
+	[--skip <count>] [--threshold <power>] [--plot] [--stat]
 
 DESCRIPTION
 
@@ -52,7 +52,7 @@ OPTIONS
 
 if __name__ == '__main__':
 	try:
-		optspec = ('help load= save= skip= plot stat')
+		optspec = ('help load= save= skip= threshold= plot stat')
 		raw_opts, args = getopt.getopt(sys.argv[1:], "", optspec.split(' '))
 
 		for option, parameter in raw_opts:
@@ -70,6 +70,9 @@ if __name__ == '__main__':
 			opt['skip'] = int(opt['skip'])
 		else:
 			opt['skip'] = 0
+
+		if 'threshold' in opt:
+			opt['threshold'] = float(opt['threshold'])
 
 	except getopt.GetoptError as err:
 		print(err)
@@ -109,6 +112,27 @@ if __name__ == '__main__':
 	print('Reported energy: E = {:f} J'.format(m_energy))
 	print('Calculated energy: U*I*t = {:f} J'.format(m_calc_energy))
 	print('Energy deviation: {:.1f}%'.format(m_energy_deviation * 100))
+
+
+	if 'threshold' in opt:
+		power = data[:, 1] * data[:, 2]
+
+		peaks = []
+		peak_start = -1
+		for i, dp in enumerate(power):
+			if dp >= opt['threshold'] and peak_start == -1:
+				peak_start = i
+			elif dp < opt['threshold'] and peak_start != -1:
+				peaks.append((peak_start, i))
+				peak_start = -1
+
+		for peak in peaks:
+			duration = data[peak[1]-1, 0] - data[peak[0], 0]
+			print('{:.2f}ms peak ({:f} -> {:f})'.format(duration * 1000,
+				data[peak[0], 0], data[peak[1]-1, 0]))
+			print('    {:f} µJ / mean {:f} µW'.format(
+				np.mean(power[peak[0] : peak[1]]) * duration * 1e6,
+				np.mean(power[peak[0] : peak[1]]) * 1e6 ))
 
 	if 'save' in opt:
 		with open(opt['save'], 'w') as f:
