@@ -2,6 +2,7 @@
 # vim:tabstop=4:softtabstop=4:shiftwidth=4:textwidth=160:smarttab:expandtab
 
 import getopt
+import itertools
 import matplotlib.pyplot as plt
 import numpy as np
 import os
@@ -45,21 +46,48 @@ OPTIONS
   --skip <count>
     Skip <count> data samples. This is useful to avoid startup code
     influencing the results of a long-running measurement
-  --threshold <watts>|auto
+  --threshold <watts>|mean
     Partition data into points with mean power >= <watts> and points with
     mean power < <watts>, and print some statistics. higher power is handled
     as peaks, whereas low-power measurements constitute the baseline.
-    If the threshold is set to "auto", the mean power of all measurements
+    If the threshold is set to "mean", the mean power of all measurements
     will be used
+  --threshold-peakcount <num>
+    Automatically determine threshold so that there are exactly <num> peaks.
+    A peaks is a group of consecutive measurements with mean power >= threshold
   --plot
     Show power/time plot
   --stat
     Show mean voltage, current, and power as well as total energy consumption.
     ''')
 
+def peak_search(data, lower, upper, direction_function):
+    while upper - lower > 1e-6:
+        bs_test = np.mean([lower, upper])
+        peakcount = itertools.groupby(data, lambda x: x >= bs_test)
+        peakcount = filter(lambda x: x[0] == True, peakcount)
+        peakcount = sum(1 for i in peakcount)
+        direction = direction_function(peakcount, bs_test)
+        if direction == 0:
+            return bs_test
+        elif direction == 1:
+            lower = bs_test
+        else:
+            upper = bs_test
+    return None
+
+def peak_search2(data, lower, upper, check_function):
+    for power in np.arange(lower, upper, 1e-6):
+        peakcount = itertools.groupby(data, lambda x: x >= power)
+        peakcount = filter(lambda x: x[0] == True, peakcount)
+        peakcount = sum(1 for i in peakcount)
+        if check_function(peakcount, power) == 0:
+            return power
+    return None
+
 if __name__ == '__main__':
     try:
-        optspec = ('help load= save= skip= threshold= plot stat')
+        optspec = ('help load= save= skip= threshold= threshold-peakcount= plot stat')
         raw_opts, args = getopt.getopt(sys.argv[1:], "", optspec.split(' '))
 
         for option, parameter in raw_opts:
@@ -78,8 +106,11 @@ if __name__ == '__main__':
         else:
             opt['skip'] = 0
 
-        if 'threshold' in opt and opt['threshold'] != 'auto':
+        if 'threshold' in opt and opt['threshold'] != 'mean':
             opt['threshold'] = float(opt['threshold'])
+
+        if 'threshold-peakcount' in opt:
+            opt['threshold-peakcount'] = int(opt['threshold-peakcount'])
 
     except getopt.GetoptError as err:
         print(err)
@@ -120,20 +151,53 @@ if __name__ == '__main__':
     print('Calculated energy: U*I*t = {:f} J'.format(m_calc_energy))
     print('Energy deviation: {:.1f}%'.format(m_energy_deviation * 100))
 
+    power = data[:, 1] * data[:, 2]
+
+    if 'threshold-peakcount' in opt:
+        bs_mean = np.mean(power)
+
+        # Finding the correct threshold is tricky. If #peaks < peakcont, our
+        # current threshold may be too low (extreme case: a single peaks
+        # containing all measurements), but it may also be too high (extreme
+        # case: a single peak containing just one data point). Similarly,
+        # #peaks > peakcount may be due to baseline noise causing lots of
+        # small peaks, or due to peak noise (if the threshold is already rather
+        # high).
+        # For now, we first try a simple binary search:
+        # The threshold is probably somewhere around the mean, so if
+        # #peaks != peakcount and threshold < mean, we go up, and if
+        # #peaks != peakcount and threshold >= mean, we go down.
+        # If that doesn't work, we fall back to a linear search in 1 µW steps
+        def direction_function(peakcount, power):
+            if peakcount == opt['threshold-peakcount']:
+                return 0;
+            if power < bs_mean:
+                return 1;
+            return -1;
+        threshold = peak_search(power, np.min(power), np.max(power), direction_function)
+        if threshold == None:
+            threshold = peak_search2(power, np.min(power), np.max(power), direction_function)
+
+        if threshold != None:
+            print('Threshold set to {:.0f} µW         : {:.9f}'.format(threshold * 1e6, threshold))
+            opt['threshold'] = threshold
+        else:
+            print('Found no working threshold')
 
     if 'threshold' in opt:
-        power = data[:, 1] * data[:, 2]
-
-        if opt['threshold'] == 'auto':
+        if opt['threshold'] == 'mean':
             opt['threshold'] = np.mean(power)
-            print('Threshold set to {:.0f} µW'.format(opt['threshold'] * 1e6))
+            print('Threshold set to {:.0f} µW         : {:.9f}'.format(opt['threshold'] * 1e6, opt['threshold']))
 
+        baseline_mean = 0
         if np.any(power < opt['threshold']):
-            print('Baseline mean: {:.0f} µW'.format(
-                np.mean(power[power < opt['threshold']]) * 1e6 ))
+            baseline_mean = np.mean(power[power < opt['threshold']])
+            print('Baseline mean: {:.0f} µW           : {:.9f}'.format(
+                baseline_mean * 1e6, baseline_mean))
         if np.any(power >= opt['threshold']):
-            print('Peak mean: {:.0f} µW'.format(
-                np.mean(power[power >= opt['threshold']]) * 1e6))
+            print('Peak mean: {:.0f} µW               : {:.9f}'.format(
+                np.mean(power[power >= opt['threshold']]) * 1e6,
+                np.mean(power[power >= opt['threshold']])))
 
         peaks = []
         peak_start = -1
@@ -144,23 +208,35 @@ if __name__ == '__main__':
                 peaks.append((peak_start, i))
                 peak_start = -1
 
+        total_energy = 0
+        delta_energy = 0
         for peak in peaks:
             duration = data[peak[1]-1, 0] - data[peak[0], 0]
+            total_energy += np.mean(power[peak[0] : peak[1]]) * duration
+            delta_energy += (np.mean(power[peak[0] : peak[1]]) - baseline_mean) * duration
             print('{:.2f}ms peak ({:f} -> {:f})'.format(duration * 1000,
                 data[peak[0], 0], data[peak[1]-1, 0]))
             print('    {:f} µJ / mean {:f} µW'.format(
                 np.mean(power[peak[0] : peak[1]]) * duration * 1e6,
                 np.mean(power[peak[0] : peak[1]]) * 1e6 ))
+        print('Peak energy mean: {:.0f} µJ         : {:.9f}'.format(
+            total_energy * 1e6 / len(peaks), total_energy / len(peaks)))
+        print('Average per-peak energy (delta over baseline): {:.0f} µJ         : {:.9f}'.format(
+            delta_energy * 1e6 / len(peaks), delta_energy / len(peaks)))
+
 
     if 'save' in opt:
         with open(opt['save'], 'w') as f:
             f.write(log_data)
 
     if 'stat' in opt:
-        print('Mean voltage: {:f}'.format(np.mean(data[:, 2])))
-        print('Mean current: {:f}'.format(np.mean(data[:, 1])))
-        print('Mean power: {:f}'.format(np.mean(data[:, 1] * data[:, 2])))
-        print('Total energy: {:f}'.format(m_energy))
+        mean_voltage = np.mean(data[:, 2])
+        mean_current = np.mean(data[:, 1])
+        mean_power = np.mean(data[:, 1] * data[:, 2])
+        print('Mean voltage: {:.2f} V       : {:.9f}'.format(mean_voltage, mean_voltage))
+        print('Mean current: {:.0f} µA       : {:.9f}'.format(mean_current * 1e6, mean_current))
+        print('Mean power: {:.0f} µW       : {:.9f}'.format(mean_power * 1e6, mean_power))
+        print('Total energy: {:f} J       : {:.9f}'.format(m_energy, m_energy))
 
     if 'plot' in opt:
         pwrhandle, = plt.plot(data[:, 0], data[:, 1] * data[:, 2], 'b-', label='U*I', markersize=1)
