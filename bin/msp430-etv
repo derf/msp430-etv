@@ -7,16 +7,21 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 import re
+from shutil import which
 import subprocess
 import sys
 
 opt = dict()
 
 def measure_data(time):
+    # libmsp430.so must be available
     if not 'LD_LIBRARY_PATH' in os.environ:
         os.environ['LD_LIBRARY_PATH'] = '{}/var/projects/msp430/MSP430Flasher_1.3.7'.format(os.environ['HOME'])
 
-    energytrace_cmd = '{}/var/source/energytrace-util/energytrace'.format(os.environ['HOME'])
+    # https://github.com/carrotIndustries/energytrace-util must be available
+    energytrace_cmd = 'energytrace'
+    if which(energytrace_cmd) is None:
+        energytrace_cmd = '{}/var/source/energytrace-util/energytrace'.format(os.environ['HOME'])
 
     res = subprocess.run([energytrace_cmd, str(duration)], stdout = subprocess.PIPE, universal_newlines = True)
 
