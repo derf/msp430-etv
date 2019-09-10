@@ -58,12 +58,22 @@ OPTIONS
     If the threshold is set to "mean", the mean power of all measurements
     will be used
   --threshold-peakcount <num>
-    Automatically determine threshold so that there are exactly <num> peaks.
-    A peaks is a group of consecutive measurements with mean power >= threshold
+    Automatically determine a threshold so that there are exactly <num> peaks.
+    A peaks is a group of consecutive measurements with mean power >= threshold.
+    WARNING: In general, there is more than one threshold value leading to
+    exactly <num> peaks. If the difference between baseline and peak
+    power is sufficiently high, this option should do what you mean[tm]
   --plot
-    Show power/time plot
+    Draw power/time plot
   --stat
-    Show mean voltage, current, and power as well as total energy consumption.
+    Print mean voltage, current, and power as well as total energy consumption.
+
+DEPENDENCIES
+
+For data measurements (i.e., any invocation not using --load),
+energytrace-util <https://github.com/carrotIndustries/energytrace-util>
+must be available in $PATH and libmsp430.so must be located in the
+LD library search path (e.g. LD_LIBRARY_PATH=../MSP430Flasher).
     ''')
 
 def peak_search(data, lower, upper, direction_function):
