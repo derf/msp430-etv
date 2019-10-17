@@ -1,7 +1,7 @@
 # msp430-etv – MSP430 EnergyTrace Visualizer
 
 msp430-etv is a wrapper around
-[energytrace-util](https://github.com/carrotIndustries/energytrace-util) to
+[energytrace-util](https://github.com/derf/energytrace-util) to
 simplify aggregation, visualization and basic analysis of EnergyTrace
 measurements.
 
@@ -15,6 +15,6 @@ energy for a given measurement to stdout.
 
 ## Dependencies
 
-* [energytrace-util](https://github.com/carrotIndustries/energytrace-util)
+* [energytrace-util](https://github.com/derf/energytrace-util)
   and libmsp430.so
 * Python 3 with matplotlib and numpy
