@@ -11,10 +11,11 @@ from shutil import which
 import subprocess
 import sys
 import tempfile
+import time
 
 opt = dict()
 
-def measure_data(filename, time):
+def measure_data(filename, duration):
     # libmsp430.so must be available
     if not 'LD_LIBRARY_PATH' in os.environ:
         os.environ['LD_LIBRARY_PATH'] = '{}/var/projects/msp430/MSP430Flasher_1.3.15'.format(os.environ['HOME'])
@@ -29,7 +30,19 @@ def measure_data(filename, time):
     else:
         output_handle = tempfile.TemporaryFile('w+')
 
-    res = subprocess.run([energytrace_cmd, str(duration)], stdout = output_handle, universal_newlines = True)
+    energytrace = subprocess.Popen([energytrace_cmd, str(duration)], stdout = output_handle, universal_newlines = True)
+
+    try:
+        if duration:
+            time.sleep(duration)
+        else:
+            print('Press Ctrl+C to stop measurement')
+            while True:
+                time.sleep(3600)
+    except KeyboardInterrupt:
+        energytrace.send_signal(subprocess.signal.SIGTERM)
+
+    energytrace.communicate(timeout=5)
 
     output_handle.seek(0)
     output = output_handle.read()
