@@ -10,22 +10,32 @@ import re
 from shutil import which
 import subprocess
 import sys
+import tempfile
 
 opt = dict()
 
-def measure_data(time):
+def measure_data(filename, time):
     # libmsp430.so must be available
     if not 'LD_LIBRARY_PATH' in os.environ:
-        os.environ['LD_LIBRARY_PATH'] = '{}/var/projects/msp430/MSP430Flasher_1.3.7'.format(os.environ['HOME'])
+        os.environ['LD_LIBRARY_PATH'] = '{}/var/projects/msp430/MSP430Flasher_1.3.15'.format(os.environ['HOME'])
 
     # https://github.com/carrotIndustries/energytrace-util must be available
     energytrace_cmd = 'energytrace'
     if which(energytrace_cmd) is None:
-        energytrace_cmd = '{}/var/source/energytrace-util/energytrace'.format(os.environ['HOME'])
+        energytrace_cmd = '{}/var/source/energytrace-util/energytrace64'.format(os.environ['HOME'])
 
-    res = subprocess.run([energytrace_cmd, str(duration)], stdout = subprocess.PIPE, universal_newlines = True)
+    if filename is not None:
+        output_handle = open(filename, 'w+')
+    else:
+        output_handle = tempfile.TemporaryFile('w+')
 
-    return res.stdout
+    res = subprocess.run([energytrace_cmd, str(duration)], stdout = output_handle, universal_newlines = True)
+
+    output_handle.seek(0)
+    output = output_handle.read()
+    output_handle.close()
+
+    return output
 
 def show_help():
     print('''msp430-etv - MSP430 EnergyTrace Visualizer
@@ -116,6 +126,9 @@ if __name__ == '__main__':
         if not 'load' in opt:
             duration = int(args[0])
 
+        if not 'save' in opt:
+            opt['save'] = None
+
         if 'skip' in opt:
             opt['skip'] = int(opt['skip'])
         else:
@@ -141,7 +154,7 @@ if __name__ == '__main__':
         with open(opt['load'], 'r') as f:
             log_data = f.read()
     else:
-        log_data = measure_data(duration)
+        log_data = measure_data(opt['save'], duration)
 
     lines = log_data.split('\n')
     data_count = sum(map(lambda x: len(x) > 0 and x[0] != '#', lines))
@@ -239,10 +252,6 @@ if __name__ == '__main__':
         print('Average per-peak energy (delta over baseline): {:.0f} µJ         : {:.9f}'.format(
             delta_energy * 1e6 / len(peaks), delta_energy / len(peaks)))
 
-
-    if 'save' in opt:
-        with open(opt['save'], 'w') as f:
-            f.write(log_data)
 
     if 'stat' in opt:
         mean_voltage = np.mean(data[:, 2])
