@@ -179,9 +179,10 @@ if __name__ == '__main__':
         if i >= opt['skip']:
             fields = line.split(' ')
             if len(fields) == 4:
-                timestamp, current, voltage, total_energy = map(float, line.split(' '))
+                timestamp, current, voltage, total_energy = map(int, fields)
             elif len(fields) == 5:
-                cpustate, timestamp, current, voltage, total_energy = map(float, line.split(' '))
+                cpustate = fields[0]
+                timestamp, current, voltage, total_energy = map(int, fields[1:])
             else:
                 raise RuntimeError('cannot parse line "{}"'.format(line))
             data[i - opt['skip']] = [timestamp, current, voltage, total_energy]
