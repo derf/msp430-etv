@@ -177,7 +177,13 @@ if __name__ == '__main__':
 
     for i, line in enumerate(data_lines):
         if i >= opt['skip']:
-            timestamp, current, voltage, total_energy = map(float, line.split(' '))
+            fields = line.split(' ')
+            if len(fields) == 4:
+                timestamp, current, voltage, total_energy = map(float, line.split(' '))
+            elif len(fields) == 5:
+                cpustate, timestamp, current, voltage, total_energy = map(float, line.split(' '))
+            else:
+                raise RuntimeError('cannot parse line "{}"'.format(line))
             data[i - opt['skip']] = [timestamp, current, voltage, total_energy]
 
     m_duration_us = data[-1, 0] - data[0, 0]
