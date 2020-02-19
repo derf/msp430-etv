@@ -206,18 +206,17 @@ if __name__ == '__main__':
     m_duration_us = data[-1, 0] - data[0, 0]
     m_energy_nj = data[-1, 3] - data[0, 3]
     # mV * nA * us = aJ (1e-18 J) -> use factor 1e-6 to get pJ (1e-12 J)
-    m_calc_energy_pj = np.sum(data[1:, 1] * data[1:, 2] * 1e-6 * (data[1:, 0] - data[:-1, 0]))
-    m_energy_nj_deviation = np.abs(m_energy_nj - m_calc_energy_pj * 1e-3) / np.max([m_energy_nj, m_calc_energy_pj * 1e-3])
 
     print('{:d} measurements in {:.2f} s = {:.0f} Hz sample rate'.format(
         data_count, m_duration_us * 1e-6, data_count / (m_duration_us * 1e-6)))
 
     print('Reported energy: E = {:f} J'.format(m_energy_nj * 1e-9))
-    print('Calculated energy: U*I*t = {:f} J'.format(m_calc_energy_pj * 1e-12))
-    print('Energy deviation: {:.1f}%'.format(m_energy_nj_deviation * 100))
 
-    # nA * mV = pW
-    power = data[:, 1] * data[:, 2] * 1e-12
+    # nJ / us = mW -> (nJ * 1e-9) / (us * 1e-6) = W
+    # Do not use power = data[:, 1] * data[:, 2] * 1e-12 here: nA values provided by the EnergyTrace library in data[:, 1] are heavily filtered and mostly
+    # useless for visualization and calculation. They often do not agree with the nJ values in data[:, 3].
+    power = ((data[1:, 3] - data[:-1, 3]) * 1e-9) / ((data[1:, 0] - data[:-1, 0]) * 1e-6)
+
 
     if 'threshold-peakcount' in opt:
         bs_mean = np.mean(power)
@@ -290,7 +289,6 @@ if __name__ == '__main__':
         print('Average per-peak energy (delta over baseline): {:.0f} µJ         : {:.9f}'.format(
             delta_energy * 1e6 / len(peaks), delta_energy / len(peaks)))
 
-    power_from_current = data[:, 1] * data[:, 2] * 1e-12
     power_from_energy = ((data[1:, 3] - data[:-1, 3]) * 1e-9) / ((data[1:, 0] - data[:-1, 0]) * 1e-6)
     mean_power = running_mean(power_from_energy, 10)
 
@@ -305,10 +303,9 @@ if __name__ == '__main__':
 
     if 'plot' in opt:
         # nA * mV = pW
-        pwrhandle, = plt.plot(data[:, 0] * 1e-6, power_from_current, 'b-', label='P=U*I', markersize=1)
-        energyhandle, = plt.plot(data[1:, 0] * 1e-6, power_from_energy, 'r-', label='P=ΔE/Δt', markersize=1)
-        energyhandle2, = plt.plot(data[1:, 0] * 1e-6, mean_power, 'y-', label='E/Δt', markersize=1)
-        plt.legend(handles=[pwrhandle, energyhandle])
+        energyhandle, = plt.plot(data[1:, 0] * 1e-6, power_from_energy, 'b-', label='P=ΔE/Δt', markersize=1)
+        meanhandle, = plt.plot(data[1:, 0] * 1e-6, mean_power, 'r-', label='mean(P, 10)', markersize=1)
+        plt.legend(handles=[energyhandle, meanhandle])
         plt.xlabel('Time [s]')
         plt.ylabel('Power [W]')
         plt.grid(True)
