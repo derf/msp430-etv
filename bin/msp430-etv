@@ -16,6 +16,67 @@ import time
 opt = dict()
 
 
+def show_help():
+    print(
+        """msp430-etv - MSP430 EnergyTrace Visualizer
+
+USAGE
+
+msp430-etv [--load <file> | <measurement duration>] [--save <file>]
+    [--skip <count>] [--threshold <power>] [--plot] [--stat]
+
+DESCRIPTION
+
+msp430-etv takes energy measurements from an MSP430 Launchpad or similar device
+using MSP430 EnergyTrace technology. Measurements can be taken directly (by
+specifying <measurement duration> in seconds) or loaded from a logfile using
+--load <file>. Data can be plotted or aggregated on stdout.
+
+This program is not affiliated with Texas Instruments. Use at your own risk.
+
+OPTIONS
+
+  --load <file>
+    Load data from <file>
+  --save <file>
+    Save measurement data in <file>
+  --skip <count>
+    Skip <count> data samples. This is useful to avoid startup code
+    influencing the results of a long-running measurement
+  --threshold <watts>|mean
+    Partition data into points with mean power >= <watts> and points with
+    mean power < <watts>, and print some statistics. higher power is handled
+    as peaks, whereas low-power measurements constitute the baseline.
+    If the threshold is set to "mean", the mean power of all measurements
+    will be used
+  --threshold-peakcount <num>
+    Automatically determine a threshold so that there are exactly <num> peaks.
+    A peaks is a group of consecutive measurements with mean power >= threshold.
+    WARNING: In general, there is more than one threshold value leading to
+    exactly <num> peaks. If the difference between baseline and peak
+    power is sufficiently high, this option should do what you mean[tm]
+  --plot
+    Draw power/time plot
+  --stat
+    Print mean voltage, current, and power as well as total energy consumption.
+  --histogram=<n>
+    Draw histograms of reported energy values per measurement interval
+    (i.e., the differences between each pair of consecutive total energy readings),
+    measurement interval duration, and
+    mean power values per measurement interval
+    (calculated from energy difference and duration).
+    Each histogram uses <n> buckets.
+
+DEPENDENCIES
+
+For data measurements (i.e., any invocation not using --load),
+energytrace-util <https://github.com/carrotIndustries/energytrace-util>
+must be available in $PATH and libmsp430.so must be located in the
+LD library search path (e.g. LD_LIBRARY_PATH=../MSP430Flasher).
+    """
+    )
+
+
 def running_mean(x: np.ndarray, N: int) -> np.ndarray:
     """
     Compute `N` elements wide running average over `x`.
@@ -73,65 +134,6 @@ def measure_data(filename, duration):
     output_handle.close()
 
     return output
-
-
-def show_help():
-    print(
-        """msp430-etv - MSP430 EnergyTrace Visualizer
-
-USAGE
-
-msp430-etv [--load <file> | <measurement duration>] [--save <file>]
-    [--skip <count>] [--threshold <power>] [--plot] [--stat]
-
-DESCRIPTION
-
-msp430-etv takes energy measurements from an MSP430 Launchpad or similar device
-using MSP430 EnergyTrace technology. Measurements can be taken directly (by
-specifying <measurement duration> in seconds) or loaded from a logfile using
---load <file>. Data can be plotted or aggregated on stdout.
-
-OPTIONS
-
-  --load <file>
-    Load data from <file>
-  --save <file>
-    Save measurement data in <file>
-  --skip <count>
-    Skip <count> data samples. This is useful to avoid startup code
-    influencing the results of a long-running measurement
-  --threshold <watts>|mean
-    Partition data into points with mean power >= <watts> and points with
-    mean power < <watts>, and print some statistics. higher power is handled
-    as peaks, whereas low-power measurements constitute the baseline.
-    If the threshold is set to "mean", the mean power of all measurements
-    will be used
-  --threshold-peakcount <num>
-    Automatically determine a threshold so that there are exactly <num> peaks.
-    A peaks is a group of consecutive measurements with mean power >= threshold.
-    WARNING: In general, there is more than one threshold value leading to
-    exactly <num> peaks. If the difference between baseline and peak
-    power is sufficiently high, this option should do what you mean[tm]
-  --plot
-    Draw power/time plot
-  --stat
-    Print mean voltage, current, and power as well as total energy consumption.
-  --histogram=<n>
-    Draw histograms of reported energy values per measurement interval
-    (i.e., the differences between each pair of consecutive total energy readings),
-    measurement interval duration, and
-    mean power values per measurement interval
-    (calculated from energy difference and duration).
-    Each histogram uses <n> buckets.
-
-DEPENDENCIES
-
-For data measurements (i.e., any invocation not using --load),
-energytrace-util <https://github.com/carrotIndustries/energytrace-util>
-must be available in $PATH and libmsp430.so must be located in the
-LD library search path (e.g. LD_LIBRARY_PATH=../MSP430Flasher).
-    """
-    )
 
 
 def peak_search(data, lower, upper, direction_function):
@@ -201,8 +203,14 @@ if __name__ == "__main__":
         sys.exit(2)
 
     if "load" in opt:
-        with open(opt["load"], "r") as f:
-            log_data = f.read()
+        if ".xz" in opt["load"]:
+            import lzma
+
+            with lzma.open(opt["load"], "rt") as f:
+                log_data = f.read()
+        else:
+            with open(opt["load"], "r") as f:
+                log_data = f.read()
     else:
         log_data = measure_data(opt["save"], duration)
 
