@@ -400,6 +400,7 @@ if __name__ == "__main__":
             plt.legend(handles=[energyhandle, meanhandle])
             plt.ylabel("Voltage [V]")
         elif opt["plot"] == "I":
+            print("Warning: The current reported by energytrace is aggressively smoothed and often inaccurate.")
             # nA
             (energyhandle,) = plt.plot(
                 data[1:, 0] * 1e-6, data[1:, 1] * 1e-9, "b-", label="I", markersize=1
