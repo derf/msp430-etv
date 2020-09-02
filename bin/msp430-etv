@@ -23,7 +23,7 @@ def show_help():
 USAGE
 
 msp430-etv [--load <file> | <measurement duration>] [--save <file>]
-    [--skip <count>] [--threshold <power>] [--plot] [--stat]
+    [--skip <count>] [--threshold <power>] [--plot=U|I|P] [--stat]
 
 DESCRIPTION
 
@@ -55,8 +55,8 @@ OPTIONS
     WARNING: In general, there is more than one threshold value leading to
     exactly <num> peaks. If the difference between baseline and peak
     power is sufficiently high, this option should do what you mean[tm]
-  --plot
-    Draw power/time plot
+  --plot=U|I|P
+    Plot voltage / current / power over time
   --stat
     Print mean voltage, current, and power as well as total energy consumption.
   --histogram=<n>
@@ -164,7 +164,7 @@ def peak_search2(data, lower, upper, check_function):
 
 if __name__ == "__main__":
     try:
-        optspec = "help load= save= skip= threshold= threshold-peakcount= plot stat histogram="
+        optspec = "help load= save= skip= threshold= threshold-peakcount= plot= stat histogram="
         raw_opts, args = getopt.getopt(sys.argv[1:], "", optspec.split(" "))
 
         for option, parameter in raw_opts:
@@ -385,16 +385,48 @@ if __name__ == "__main__":
         )
 
     if "plot" in opt:
-        # nA * mV = pW
-        (energyhandle,) = plt.plot(
-            data[1:, 0] * 1e-6, power_from_energy, "b-", label="P=ΔE/Δt", markersize=1
-        )
-        (meanhandle,) = plt.plot(
-            data[1:, 0] * 1e-6, mean_power, "r-", label="mean(P, 10)", markersize=1
-        )
-        plt.legend(handles=[energyhandle, meanhandle])
+        if opt["plot"] == "U":
+            # mV
+            (energyhandle,) = plt.plot(
+                data[1:, 0] * 1e-6, data[1:, 2] * 1e-3, "b-", label="U", markersize=1
+            )
+            (meanhandle,) = plt.plot(
+                data[1:, 0] * 1e-6,
+                running_mean(data[1:, 2], 10) * 1e-3,
+                "r-",
+                label="mean(U, 10)",
+                markersize=1,
+            )
+            plt.legend(handles=[energyhandle, meanhandle])
+            plt.ylabel("Voltage [V]")
+        elif opt["plot"] == "I":
+            # nA
+            (energyhandle,) = plt.plot(
+                data[1:, 0] * 1e-6, data[1:, 1] * 1e-9, "b-", label="I", markersize=1
+            )
+            (meanhandle,) = plt.plot(
+                data[1:, 0] * 1e-6,
+                running_mean(data[1:, 1], 10) * 1e-9,
+                "r-",
+                label="mean(I, 10)",
+                markersize=1,
+            )
+            plt.legend(handles=[energyhandle, meanhandle])
+            plt.ylabel("Current [A]")
+        else:
+            (energyhandle,) = plt.plot(
+                data[1:, 0] * 1e-6,
+                power_from_energy,
+                "b-",
+                label="P=ΔE/Δt",
+                markersize=1,
+            )
+            (meanhandle,) = plt.plot(
+                data[1:, 0] * 1e-6, mean_power, "r-", label="mean(P, 10)", markersize=1
+            )
+            plt.legend(handles=[energyhandle, meanhandle])
+            plt.ylabel("Power [W]")
         plt.xlabel("Time [s]")
-        plt.ylabel("Power [W]")
         plt.grid(True)
         if "load" in opt:
             plt.title(opt["load"])
