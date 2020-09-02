@@ -361,7 +361,7 @@ if __name__ == "__main__":
     power_from_energy = ((data[1:, 3] - data[:-1, 3]) * 1e-9) / (
         (data[1:, 0] - data[:-1, 0]) * 1e-6
     )
-    mean_power = running_mean(power_from_energy, 10)
+    smooth_power = running_mean(power_from_energy, 10)
 
     if "stat" in opt:
         mean_voltage = np.mean(data[:, 2] * 1e-3)
@@ -422,7 +422,11 @@ if __name__ == "__main__":
                 markersize=1,
             )
             (meanhandle,) = plt.plot(
-                data[1:, 0] * 1e-6, mean_power, "r-", label="mean(P, 10)", markersize=1
+                data[1:, 0] * 1e-6,
+                smooth_power,
+                "r-",
+                label="mean(P, 10)",
+                markersize=1,
             )
             plt.legend(handles=[energyhandle, meanhandle])
             plt.ylabel("Power [W]")
@@ -456,5 +460,5 @@ if __name__ == "__main__":
         plt.title("Postprocessing via Running average (window size=10)")
         plt.xlabel("Mean Power per Measurement Interval [W]")
         plt.ylabel("Count")
-        plt.hist(mean_power, bins=bin_count)
+        plt.hist(smooth_power, bins=bin_count)
         plt.show()
