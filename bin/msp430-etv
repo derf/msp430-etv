@@ -150,7 +150,7 @@ def main():
     parser.add_argument(
         "--plot",
         metavar="UNIT",
-        choices=["U", "I", "P"],
+        choices=["U", "I", "P", "P/U"],
         help="Plot voltage / current / power over time",
     )
     parser.add_argument(
@@ -389,6 +389,24 @@ def main():
                 label="mean(I, 10)",
                 markersize=1,
             )
+            plt.legend(handles=[energyhandle, meanhandle])
+            plt.ylabel("Current [A]")
+        elif args.plot == "P/U":
+            (energyhandle,) = plt.plot(
+                data[1:, 0] * 1e-6,
+                power_from_energy / (data[1:, 2] * 1e-3),
+                "b-",
+                label="I=ΔE/(Δt·U)",
+                markersize=1,
+            )
+            (meanhandle,) = plt.plot(
+                data[1:, 0] * 1e-6,
+                smooth_power / (data[1:, 2] * 1e-3),
+                "r-",
+                label="mean(I, 10)",
+                markersize=1,
+            )
+            PELT().get_changepoints((smooth_power / (data[1:, 2] * 1e-3))[:400])
             plt.legend(handles=[energyhandle, meanhandle])
             plt.ylabel("Current [A]")
         else:
