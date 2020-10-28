@@ -26,6 +26,7 @@ import argparse
 import itertools
 import json
 import matplotlib.pyplot as plt
+from multiprocessing import Pool
 import numpy as np
 import os
 from shutil import which
@@ -35,9 +36,6 @@ import tempfile
 import time
 
 opt = dict()
-
-from multiprocessing import Pool
-import ruptures as rpt
 
 
 def running_mean(x: np.ndarray, N: int) -> np.ndarray:
