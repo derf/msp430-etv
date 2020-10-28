@@ -24,6 +24,7 @@ OPTIONS
 
 import argparse
 import itertools
+import json
 import matplotlib.pyplot as plt
 import numpy as np
 import os
@@ -34,6 +35,9 @@ import tempfile
 import time
 
 opt = dict()
+
+from multiprocessing import Pool
+import ruptures as rpt
 
 
 def running_mean(x: np.ndarray, N: int) -> np.ndarray:
@@ -47,9 +51,101 @@ def running_mean(x: np.ndarray, N: int) -> np.ndarray:
     # to ensure that output.shape == input.shape, we need to insert data
     # at the boundaries
     boundary_array = np.insert(x, 0, np.full((N // 2), x[0]))
-    boundary_array = np.append(boundary_array, np.full((N // 2 + N % 2), x[-1]))
-    cumsum = np.cumsum(boundary_array)
-    return (cumsum[N:] - cumsum[:-N]) / N
+    boundary_array = np.append(boundary_array, np.full((N // 2 + N % 2 - 1), x[-1]))
+
+    return np.convolve(boundary_array, np.ones((N,)) / N, mode="valid")
+
+
+class NpEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        else:
+            return super(NpEncoder, self).default(obj)
+
+
+def PELT_get_changepoints(algo, penalty):
+    res = (penalty, algo.predict(pen=penalty))
+    return res
+
+
+class PELT:
+    def __init__(self, signal, num_samples=None):
+        self.signal = signal
+        self.model = "l1"
+        self.jump = 1
+        self.min_dist = 46
+
+        if num_samples is not None:
+            self.ds_factor = len(signal) // num_samples
+        else:
+            self.ds_factor = 1
+
+        self.jump = self.ds_factor
+
+    def norm_signal(self, signal, scaler=25):
+        max_val = max(np.abs(signal))
+        normed_signal = np.zeros(shape=len(signal))
+        for i, signal_i in enumerate(signal):
+            normed_signal[i] = signal_i / max_val
+            normed_signal[i] = normed_signal[i] * scaler
+        return normed_signal
+
+    def get_changepoints(self):
+        # imported here as ruptures is only used for changepoint detection
+        import ruptures
+
+        algo = ruptures.Pelt(
+            model=self.model, jump=self.jump, min_size=self.min_dist
+        ).fit(self.norm_signal(self.signal))
+        queue = list()
+        for i in range(0, 100):
+            queue.append((algo, i))
+        with Pool() as pool:
+            changepoints = pool.starmap(PELT_get_changepoints, queue)
+        changepoints_by_penalty = dict()
+        for res in changepoints:
+            changepoints_by_penalty[res[0]] = res[1]
+        num_changepoints = list()
+        for i in range(0, 100):
+            num_changepoints.append(len(changepoints_by_penalty[i]))
+
+        # Find plateau
+        start_index = -1
+        end_index = -1
+        longest_start = -1
+        longest_end = -1
+        prev_val = -1
+        for i, num_bkpts in enumerate(num_changepoints):
+            if num_bkpts != prev_val:
+                end_index = i - 1
+                if end_index - start_index > longest_end - longest_start:
+                    # currently found sequence is the longest found yet
+                    longest_start = start_index
+                    longest_end = end_index
+                start_index = i
+            if i == len(num_changepoints) - 1:
+                # end sequence with last value
+                end_index = i
+                # # since it is not guaranteed that this is the end of the plateau, assume the mid
+                # # of the plateau was hit.
+                # size = end_index - start_index
+                # end_index = end_index + size
+                # However this is not the clean solution. Better if search interval is widened
+                # with range_min and range_max
+                if end_index - start_index > longest_end - longest_start:
+                    # last found sequence is the longest found yet
+                    longest_start = start_index
+                    longest_end = end_index
+                start_index = i
+            prev_val = num_bkpts
+        middle_of_plateau = longest_start + (longest_start - longest_start) // 2
+        changepoints = np.array(changepoints_by_penalty[middle_of_plateau])
+        return changepoints
 
 
 def measure_data(filename, duration):
@@ -94,6 +190,28 @@ def measure_data(filename, duration):
     return output
 
 
+def export_json(filename, data=dict()):
+    with open(filename, "w") as f:
+        json.dump(data, f, cls=NpEncoder)
+
+
+def detect_changepoints(timestamps, trace, num_samples):
+    pelt = PELT(running_mean(trace, 10), num_samples=num_samples)
+    changepoints = pelt.get_changepoints()
+    prev = 0
+    ret = list()
+    for cp in changepoints:
+        cp = cp - 1
+        ret.append(
+            {
+                "interval": [timestamps[prev], timestamps[cp]],
+                "mean": np.mean(trace[prev:cp]),
+            }
+        )
+        prev = cp
+    return ret
+
+
 def peak_search(data, lower, upper, direction_function):
     while upper - lower > 1e-6:
         bs_test = np.mean([lower, upper])
@@ -129,11 +247,26 @@ def main():
         "--save", metavar="FILE", type=str, help="Save measurement data in FILE"
     )
     parser.add_argument(
+        "--json-export",
+        metavar="FILENAME",
+        type=str,
+        help="Export analysis results (e.g. changepoints) to JSON file",
+    )
+    parser.add_argument(
         "--skip",
         metavar="COUNT",
         type=int,
         default=0,
         help="Skip COUNT data samples. This is useful to avoid startup code influencing the results of a long-running measurement",
+    )
+    parser.add_argument(
+        "--limit",
+        type=float,
+        metavar="N",
+        help="Limit analysis to the first N seconds of data",
+    )
+    parser.add_argument(
+        "--pelt", metavar="JUMP", type=int, help="Perform changepoint detection"
     )
     parser.add_argument(
         "--threshold",
@@ -198,20 +331,30 @@ def main():
     energy_overflow_count = 0
     prev_total_energy = 0
     for i, line in enumerate(data_lines):
-        if i >= args.skip:
-            fields = line.split(" ")
-            if len(fields) == 4:
-                timestamp, current, voltage, total_energy = map(int, fields)
-            elif len(fields) == 5:
-                cpustate = fields[0]
-                timestamp, current, voltage, total_energy = map(int, fields[1:])
-            else:
-                raise RuntimeError('cannot parse line "{}"'.format(line))
-            if total_energy < 0 and prev_total_energy > 0:
-                energy_overflow_count += 1
-            prev_total_energy = total_energy
-            total_energy += energy_overflow_count * (2 ** 32)
-            data[i - args.skip] = [timestamp, current, voltage, total_energy]
+        if i < args.skip:
+            continue
+
+        fields = line.split(" ")
+        if len(fields) == 4:
+            timestamp, current, voltage, total_energy = map(int, fields)
+        elif len(fields) == 5:
+            cpustate = fields[0]
+            timestamp, current, voltage, total_energy = map(int, fields[1:])
+        else:
+            raise RuntimeError('cannot parse line "{}"'.format(line))
+        if total_energy < 0 and prev_total_energy > 0:
+            energy_overflow_count += 1
+        prev_total_energy = total_energy
+        total_energy += energy_overflow_count * (2 ** 32)
+
+        if args.limit is not None and timestamp * 1e-6 > args.limit:
+            final_index = i - args.skip - 1
+            break
+
+        data[i - args.skip] = [timestamp, current, voltage, total_energy]
+
+    if args.limit is not None:
+        data = data[:final_index]
 
     m_duration_us = data[-1, 0] - data[0, 0]
     m_energy_nj = data[-1, 3] - data[0, 3]
@@ -338,6 +481,16 @@ def main():
     )
     smooth_power = running_mean(power_from_energy, 10)
 
+    if args.pelt:
+        power_changepoints = detect_changepoints(
+            data[1:, 0] * 1e-6, power_from_energy, num_samples=args.pelt
+        )
+        current_changepoints = detect_changepoints(
+            data[1:, 0] * 1e-6,
+            power_from_energy / (data[1:, 2] * 1e-3),
+            num_samples=args.pelt,
+        )
+
     if args.stat:
         mean_voltage = np.mean(data[:, 2] * 1e-3)
         mean_current = np.mean(data[:, 1] * 1e-9)
@@ -358,6 +511,13 @@ def main():
                 m_energy_nj * 1e-9, m_energy_nj * 1e-9
             )
         )
+
+    if args.json_export:
+        extra_data = dict()
+        if args.pelt:
+            extra_data["power_changepoints"] = power_changepoints
+            extra_data["current_changepoints"] = current_changepoints
+        export_json(args.json_export, extra_data)
 
     if args.plot:
         if args.plot == "U":
@@ -406,7 +566,6 @@ def main():
                 label="mean(I, 10)",
                 markersize=1,
             )
-            PELT().get_changepoints((smooth_power / (data[1:, 2] * 1e-3))[:400])
             plt.legend(handles=[energyhandle, meanhandle])
             plt.ylabel("Current [A]")
         else:
