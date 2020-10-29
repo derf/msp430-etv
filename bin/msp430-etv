@@ -361,7 +361,7 @@ def main():
 
     print(
         "{:d} measurements in {:.2f} s = {:.0f} Hz sample rate".format(
-            data_count, m_duration_us * 1e-6, data_count / (m_duration_us * 1e-6)
+            len(data), m_duration_us * 1e-6, len(data) / (m_duration_us * 1e-6)
         )
     )
 
