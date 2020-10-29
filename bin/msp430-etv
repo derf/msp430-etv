@@ -264,7 +264,10 @@ def main():
         help="Limit analysis to the first N seconds of data",
     )
     parser.add_argument(
-        "--pelt", metavar="JUMP", type=int, help="Perform changepoint detection"
+        "--pelt",
+        metavar="FREQ",
+        type=int,
+        help="Perform changepoint detection with FREQ Hz",
     )
     parser.add_argument(
         "--threshold",
