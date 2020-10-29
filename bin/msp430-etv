@@ -485,11 +485,13 @@ def main():
         power_changepoints = detect_changepoints(
             data[1:, 0] * 1e-6, power_from_energy, num_samples=args.pelt
         )
+        print(f"Found {len(power_changepoints)} changepoints for power")
         current_changepoints = detect_changepoints(
             data[1:, 0] * 1e-6,
             power_from_energy / (data[1:, 2] * 1e-3),
             num_samples=args.pelt,
         )
+        print(f"Found {len(current_changepoints)} changepoints for current")
 
     if args.stat:
         mean_voltage = np.mean(data[:, 2] * 1e-3)
