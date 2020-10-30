@@ -236,6 +236,13 @@ def peak_search2(data, lower, upper, check_function):
     return None
 
 
+def plot_changepoints_vlines(changepoints):
+    X = list()
+    for cp in changepoints:
+        X.append(cp["interval"][1])
+    return X
+
+
 def main():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter, description=__doc__
@@ -557,37 +564,57 @@ def main():
             plt.legend(handles=[energyhandle, meanhandle])
             plt.ylabel("Current [A]")
         elif args.plot == "P/U":
+            X = data[1:, 0] * 1e-6
+            Y = power_from_energy / (data[1:, 2] * 1e-3)
             (energyhandle,) = plt.plot(
-                data[1:, 0] * 1e-6,
-                power_from_energy / (data[1:, 2] * 1e-3),
+                X,
+                Y,
                 "b-",
                 label="I=ΔE/(Δt·U)",
                 markersize=1,
             )
             (meanhandle,) = plt.plot(
-                data[1:, 0] * 1e-6,
+                X,
                 smooth_power / (data[1:, 2] * 1e-3),
                 "r-",
                 label="mean(I, 10)",
                 markersize=1,
             )
+            if args.pelt:
+                plt.vlines(
+                    plot_changepoints_vlines(current_changepoints),
+                    np.min(Y),
+                    np.max(Y),
+                    "g",
+                    label="changepoints(I)",
+                )
             plt.legend(handles=[energyhandle, meanhandle])
             plt.ylabel("Current [A]")
         else:
+            X = data[1:, 0] * 1e-6
+            Y = power_from_energy
             (energyhandle,) = plt.plot(
-                data[1:, 0] * 1e-6,
-                power_from_energy,
+                X,
+                Y,
                 "b-",
                 label="P=ΔE/Δt",
                 markersize=1,
             )
             (meanhandle,) = plt.plot(
-                data[1:, 0] * 1e-6,
+                X,
                 smooth_power,
                 "r-",
                 label="mean(P, 10)",
                 markersize=1,
             )
+            if args.pelt:
+                plt.vlines(
+                    plot_changepoints_vlines(power_changepoints),
+                    np.min(Y),
+                    np.max(Y),
+                    "g",
+                    label="changepoints(I)",
+                )
             plt.legend(handles=[energyhandle, meanhandle])
             plt.ylabel("Power [W]")
         plt.xlabel("Time [s]")
