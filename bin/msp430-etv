@@ -260,7 +260,7 @@ def main():
     parser.add_argument(
         "--skip",
         metavar="N",
-        type=int,
+        type=float,
         default=0,
         help="Skip the first N seconds of data. This is useful to avoid startup code influencing the results of a long-running measurement",
     )
