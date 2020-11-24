@@ -15,7 +15,7 @@ This program is not affiliated with Texas Instruments. Use at your own risk.
 DEPENDENCIES
 
 For data measurements (i.e., any invocation not using --load),
-energytrace-util <https://github.com/carrotIndustries/energytrace-util>
+energytrace-util <https://ess.cs.uos.de/git/df/energytrace-util>
 must be available in $PATH and libmsp430.so must be located in the
 LD library search path (e.g. LD_LIBRARY_PATH=../MSP430Flasher).
 
@@ -153,7 +153,7 @@ def measure_data(filename, duration):
             "LD_LIBRARY_PATH"
         ] = "{}/var/projects/msp430/MSP430Flasher_1.3.15".format(os.environ["HOME"])
 
-    # https://github.com/carrotIndustries/energytrace-util must be available
+    # https://ess.cs.uos.de/git/df/energytrace-util must be available
     energytrace_cmd = "energytrace"
     if which(energytrace_cmd) is None:
         energytrace_cmd = "{}/var/source/energytrace-util/energytrace64".format(
