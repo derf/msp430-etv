@@ -25,8 +25,6 @@ OPTIONS
 import argparse
 import itertools
 import json
-import matplotlib.pyplot as plt
-from multiprocessing import Pool
 import numpy as np
 import os
 from shutil import which
@@ -94,7 +92,8 @@ class PELT:
         return normed_signal
 
     def get_changepoints(self):
-        # imported here as ruptures is only used for changepoint detection
+        # imported here as multiprocessing and ruptures are only used for changepoint detection
+        from multiprocessing import Pool
         import ruptures
 
         algo = ruptures.Pelt(
@@ -532,6 +531,8 @@ def main():
         export_json(args.json_export, extra_data)
 
     if args.plot:
+        import matplotlib.pyplot as plt
+
         if args.plot == "U":
             # mV
             (energyhandle,) = plt.plot(
@@ -624,6 +625,8 @@ def main():
         plt.show()
 
     if args.histogram:
+        import matplotlib.pyplot as plt
+
         bin_count = args.histogram
 
         plt.title("EnergyTrace Data Analysis")
