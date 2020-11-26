@@ -504,14 +504,25 @@ def main():
 
     if args.stat:
         mean_voltage = np.mean(data[:, 2] * 1e-3)
-        mean_current = np.mean(data[:, 1] * 1e-9)
-        mean_power = np.mean(data[:, 1] * data[:, 2] * 1e-12)
+        mean_power = np.mean(power_from_energy)
+        current = power_from_energy / (data[1:, 2] * 1e-3)
+        mean_current = np.mean(current)
         print(
             "Mean voltage: {:.2f} V       : {:.9f}".format(mean_voltage, mean_voltage)
         )
         print(
             "Mean current: {:.0f} µA       : {:.9f}".format(
                 mean_current * 1e6, mean_current
+            )
+        )
+        print(
+            "Current prediction error: {:.0f} µA ({:.2f}%)".format(
+                np.mean(np.abs(mean_current - current)) * 1e6,
+                np.mean(
+                    np.abs(mean_current - current)
+                    / ((np.abs(current) + np.abs(mean_current)) / 2)
+                )
+                * 100,
             )
         )
         print(
