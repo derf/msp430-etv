@@ -1,0 +1,11 @@
+image: debian:bullseye
+
+stages:
+  - test
+
+run_tests:
+  stage: test
+  script:
+  - apt-get update -qy
+  - apt-get install -y python3 python3-numpy
+  - test/ledblink.sh
