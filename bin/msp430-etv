@@ -645,12 +645,19 @@ def main():
 
         bin_count = args.histogram
 
+        # On an MSP430FR5994 launchpad, energy is measured and reported with a
+        # granularity of 200 / 300 / 400 nJ per pulse. Details are unclear.
         plt.title("EnergyTrace Data Analysis")
         plt.xlabel("Reported Energy per Measurement Interval [J]")
         plt.ylabel("Count")
         plt.hist((data[1:, 3] - data[:-1, 3]) * 1e-9, bins=bin_count)
         plt.show()
 
+        # Data is transferred using a URB_BULK endpoint with five samples
+        # per USB packet. There's about 1.4ms between consecutive packets
+        # and 210 to 270 ms between most consecutive samples. The first sample
+        # in a packet typically has a larger delta-t of ~400ms vs the last
+        # sample in the previous packet.
         plt.title("EnergyTrace Data Analysis")
         plt.xlabel("Measurement Interval Duration [s]")
         plt.ylabel("Count")
