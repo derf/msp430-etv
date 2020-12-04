@@ -160,7 +160,7 @@ def measure_data(filename, duration):
     # https://ess.cs.uos.de/git/df/energytrace-util must be available
     energytrace_cmd = "energytrace"
     if which(energytrace_cmd) is None:
-        energytrace_cmd = "{}/var/source/energytrace-util/energytrace64".format(
+        energytrace_cmd = "{}/var/source/energytrace-util/energytrace".format(
             os.environ["HOME"]
         )
 
