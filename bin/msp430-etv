@@ -150,7 +150,7 @@ class PELT:
         return changepoints
 
 
-def measure_data(filename, duration):
+def measure_data(filename, duration, energytrace_cmd="energytrace"):
     # libmsp430.so must be available
     if not "LD_LIBRARY_PATH" in os.environ:
         os.environ[
@@ -158,10 +158,9 @@ def measure_data(filename, duration):
         ] = "{}/var/projects/msp430/MSP430Flasher_1.3.15".format(os.environ["HOME"])
 
     # https://ess.cs.uos.de/git/df/energytrace-util must be available
-    energytrace_cmd = "energytrace"
     if which(energytrace_cmd) is None:
-        energytrace_cmd = "{}/var/source/energytrace-util/energytrace".format(
-            os.environ["HOME"]
+        energytrace_cmd = "{}/var/source/energytrace-util/{}".format(
+            os.environ["HOME"], energytrace_cmd
         )
 
     if filename is not None:
@@ -310,6 +309,11 @@ def main():
         help="Draw histograms of reported energy values per measurement interval (i.e., the differences between each pair of consecutive total energy readings), measurement interval duration, and mean power values per measurement interval (calculated from energy difference and duration). Each histogram uses N buckets",
     )
     parser.add_argument(
+        "--with-hardware-states",
+        action="store_true",
+        help="Log CPU and peripheral states as well as energy readings. Requires EnergyTrace++ support. Reduces the sample rate to about 1 kHz.",
+    )
+    parser.add_argument(
         "duration", type=int, nargs="?", help="Measurement duration in seconds"
     )
 
@@ -331,6 +335,10 @@ def main():
         else:
             with open(args.load, "r") as f:
                 log_data = f.read()
+    elif args.with_hardware_states:
+        log_data = measure_data(
+            args.save, args.duration, energytrace_cmd="energytracepp"
+        )
     else:
         log_data = measure_data(args.save, args.duration)
 
@@ -339,6 +347,7 @@ def main():
     data_lines = filter(lambda x: len(x) > 0 and x[0] != "#", lines)
 
     data = np.empty((data_count, 4))
+    annotations = [None for i in range(data_count)]
     skip_offset = 0
     limit_index = data_count
 
@@ -349,7 +358,7 @@ def main():
         if len(fields) == 4:
             timestamp, current, voltage, total_energy = map(int, fields)
         elif len(fields) == 5:
-            cpustate = fields[0]
+            annotations[i] = fields[0]
             timestamp, current, voltage, total_energy = map(int, fields[1:])
         else:
             raise RuntimeError('cannot parse line "{}"'.format(line))
@@ -369,6 +378,7 @@ def main():
         data[i] = [timestamp, current, voltage, total_energy]
 
     data = data[skip_offset:limit_index]
+    annotations = annotations[skip_offset:limit_index]
 
     m_duration_us = data[-1, 0] - data[0, 0]
     m_energy_nj = data[-1, 3] - data[0, 3]
@@ -549,6 +559,43 @@ def main():
     if args.plot:
         import matplotlib.pyplot as plt
 
+        if annotations[0]:
+            fig, ax = plt.subplots()
+            annotationbox = ax.annotate(
+                "",
+                xy=(0, 0),
+                xytext=(20, 20),
+                textcoords="offset points",
+                bbox=dict(boxstyle="round", fc="w"),
+                arrowprops=dict(arrowstyle="->"),
+            )
+            annotationbox.set_visible(True)
+
+            def hover(event):
+                if event.xdata and event.ydata:
+                    annotationbox.set_visible(False)
+                    annotationbox.xy = (event.xdata, event.ydata)
+                    for i, timestamp in enumerate(data[1:, 0] * 1e-6):
+                        if timestamp >= event.xdata:
+                            annotationbox.set_text(annotations[i])
+                            break
+                    annotationbox.get_bbox_patch().set_alpha(0.4)
+                    annotationbox.set_visible(True)
+                    fig.canvas.draw_idle()
+
+            fig.canvas.mpl_connect("motion_notify_event", hover)
+
+            prev_annotation = "0000000000000000"
+            for i, annotation in enumerate(annotations):
+                if (
+                    annotation != prev_annotation
+                    and annotation != "0000000000000000"
+                    and prev_annotation != "0000000000000000"
+                ):
+                    plt.axvline(data[i, 0] * 1e-6, color="green")
+                if annotation != "0000000000000000":
+                    prev_annotation = annotation
+
         if args.plot == "U":
             # mV
             (energyhandle,) = plt.plot(
@@ -638,6 +685,7 @@ def main():
         plt.grid(True)
         if args.load:
             plt.title(args.load)
+
         plt.show()
 
     if args.histogram:
