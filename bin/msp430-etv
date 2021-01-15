@@ -553,6 +553,18 @@ def main():
             )
         )
 
+    if args.stat and args.pelt is not None:
+        for i, cp in enumerate(power_changepoints):
+            interval = cp["interval"]
+            mean = cp["mean"]
+            duration = interval[1] - interval[0]
+            print(
+                f"Changepoint {i:2d}: {interval[0]:7.3f} -> {interval[1]:7.3f} ({duration:6.3f} s, {mean * 1e6:5.0f} µW)"
+            )
+        if len(power_changepoints):
+            interval = (power_changepoints[-1]["interval"][1], data[-1, 0] * 1e-6)
+            print(f"Tail          : {interval[0]:7.3f} -> {interval[1]:7.3f}")
+
     if args.json_export:
         extra_data = dict()
         if args.pelt:
