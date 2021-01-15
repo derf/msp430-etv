@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-
+# vim:tabstop=4 softtabstop=4 shiftwidth=4 textwidth=160 smarttab expandtab colorcolumn=160
+#
 # Copyright (C) 2020 Daniel Friesel
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
-
-# vim:tabstop=4:softtabstop=4:shiftwidth=4:textwidth=160:smarttab:expandtab
 
 """msp430-etv - MSP430 EnergyTrace Visualizer
 
@@ -28,6 +27,7 @@ OPTIONS
 """
 
 import argparse
+from bisect import bisect_left
 import itertools
 import json
 import numpy as np
@@ -561,6 +561,7 @@ def main():
 
         if annotations[0]:
             fig, ax = plt.subplots()
+            timestamps = data[1:, 0] * 1e-6
             annotationbox = ax.annotate(
                 "",
                 xy=(0, 0),
@@ -575,10 +576,9 @@ def main():
                 if event.xdata and event.ydata:
                     annotationbox.set_visible(False)
                     annotationbox.xy = (event.xdata, event.ydata)
-                    for i, timestamp in enumerate(data[1:, 0] * 1e-6):
-                        if timestamp >= event.xdata:
-                            annotationbox.set_text(annotations[i])
-                            break
+                    i = bisect_left(timestamps, event.xdata)
+                    if i < len(annotations):
+                        annotationbox.set_text(annotations[i])
                     annotationbox.get_bbox_patch().set_alpha(0.4)
                     annotationbox.set_visible(True)
                     fig.canvas.draw_idle()
