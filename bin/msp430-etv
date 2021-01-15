@@ -75,13 +75,21 @@ def PELT_get_changepoints(algo, penalty):
 
 
 class PELT:
-    def __init__(self, signal, num_samples=None):
+    def __init__(self, signal, num_samples=None, stretch=1):
         self.signal = signal
         self.model = "l1"
         self.jump = 1
-        self.min_dist = 46
+        self.min_dist = 1
+        self.stretch = stretch
 
-        if num_samples is not None:
+        if stretch != 1:
+            self.signal = np.interp(
+                np.linspace(0, len(signal) - 1, (len(signal) - 1) * stretch + 1),
+                np.arange(len(signal)),
+                self.signal,
+            )
+
+        if num_samples:
             self.ds_factor = len(signal) // num_samples
         else:
             self.ds_factor = 1
@@ -109,6 +117,7 @@ class PELT:
             queue.append((algo, i))
         with Pool() as pool:
             changepoints = pool.starmap(PELT_get_changepoints, queue)
+
         changepoints_by_penalty = dict()
         for res in changepoints:
             changepoints_by_penalty[res[0]] = res[1]
@@ -150,6 +159,11 @@ class PELT:
 
         if len(changepoints) and changepoints[-1] == len(self.signal):
             changepoints = changepoints[:-1]
+
+        if self.stretch != 1:
+            changepoints = np.array(
+                np.around(changepoints / self.stretch), dtype=np.int
+            )
 
         return changepoints
 
@@ -201,7 +215,7 @@ def export_json(filename, data=dict()):
 
 
 def detect_changepoints(timestamps, trace, num_samples):
-    pelt = PELT(running_mean(trace, 10), num_samples=num_samples)
+    pelt = PELT(trace, num_samples=num_samples)
     changepoints = pelt.get_changepoints()
     prev = 0
     ret = list()
