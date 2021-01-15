@@ -147,6 +147,10 @@ class PELT:
             prev_val = num_bkpts
         middle_of_plateau = longest_start + (longest_start - longest_start) // 2
         changepoints = np.array(changepoints_by_penalty[middle_of_plateau])
+
+        if len(changepoints) and changepoints[-1] == len(self.signal):
+            changepoints = changepoints[:-1]
+
         return changepoints
 
 
