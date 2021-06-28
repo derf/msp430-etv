@@ -1,20 +1,42 @@
 # msp430-etv – MSP430 EnergyTrace Visualizer
 
-msp430-etv is a wrapper around
-[energytrace-util](https://github.com/derf/energytrace-util) to
-simplify aggregation, visualization and basic analysis of EnergyTrace
-measurements.
+msp430-etv performs, visualizes and analyzes energy measurements performed
+on TI MSP430 Launchpads using the on-board EnergyTrace circuit.
 
-Measumerents can be taken directly or loaded from energytrace-util output.
-Data belonging to startup code whose power consumption is not of interest can
-be skipped.
+It uses [energytrace-util](https://github.com/derf/energytrace-util) to start
+and stop measurements using the proprietary TI MSP430 library. Measurements can
+be analyzed directly or saved to a file for later analysis as well as
+processing by other tools.
 
-msp430-etv supports plotting the power consumption (calculated from voltage and
-current data) and writing mean voltage, current, and power as well as total
-energy for a given measurement to stdout.
+Analysis options include
+
+* plots showing voltage, current, or power over time,
+* data partitioning and statistics using a power threshold, and
+* changepoint detectiong using the PELT algorithm.
+
+See `bin/msp430-etv --help` for usage details. See [Automatic Energy Model
+Generation with MSP430
+EnergyTrace](https://ess.cs.uos.de/static/papers/Friesel-2021-CPSIoTBench.pdf)
+for accuracy figures and some odds and ends.
+
+## File Format
+
+EnergyTrace performs measurements in intervals of about 270 µs. Each line
+contains data for one measurement interval. Measurement data consists of for
+readings:
+
+* Timestamps (µs) since start of the measurement,
+* Mean current (nA) over the last ten to thousand intervals,
+* Mean voltage (mV) with details unknown, and
+* Cumulative energy (nJ) since start of the measurement.
+
+Note that the EnergyTrace hardware and firmware only measures time, voltage,
+and energy. Current readings are calculated by the MSP430 client library. Power
+readings are calculated from timestamps and energy readings by msp430-etv.
 
 ## Dependencies
 
-* [energytrace-util](https://github.com/derf/energytrace-util)
-  and libmsp430.so
-* Python 3 with matplotlib and numpy
+* Python 3, numpy
+* Taking measurements: [energytrace-util](https://github.com/derf/energytrace-util) and libmsp430.so
+* Plots: python3-matplotlib
+* Changepoint detection: python3-ruptures
