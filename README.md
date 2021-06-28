@@ -1,6 +1,6 @@
 # msp430-etv – MSP430 EnergyTrace Visualizer
 
-msp430-etv performs, visualizes and analyzes energy measurements performed
+msp430-etv performs, visualizes and analyzes energy measurements
 on TI MSP430 Launchpads using the on-board EnergyTrace circuit.
 
 It uses [energytrace-util](https://github.com/derf/energytrace-util) to start
@@ -18,6 +18,11 @@ See `bin/msp430-etv --help` for usage details. See [Automatic Energy Model
 Generation with MSP430
 EnergyTrace](https://ess.cs.uos.de/static/papers/Friesel-2021-CPSIoTBench.pdf)
 for accuracy figures and some odds and ends.
+
+Note: If you're only interested in measurement files and want to perform all
+postprocessing by yourself, you do not need msp430-etv.
+[energytrace-util](https://github.com/derf/energytrace-util) is sufficient for
+that task.
 
 ## File Format
 
