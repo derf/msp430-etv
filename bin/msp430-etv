@@ -38,7 +38,7 @@ import sys
 import tempfile
 import time
 
-opt = dict()
+matplotlib_theme = "fast"
 
 
 def running_mean(x: np.ndarray, N: int) -> np.ndarray:
@@ -169,7 +169,12 @@ class PELT:
 
 
 def measure_data(
-    filename, duration, libmsp430_path=None, energytrace_cmd="energytrace"
+    filename,
+    duration,
+    libmsp430_path=None,
+    energytrace_cmd="energytrace",
+    live_view=False,
+    live_history=10000,
 ):
     # libmsp430.so must be available
     if libmsp430_path is None:
@@ -190,19 +195,94 @@ def measure_data(
     else:
         output_handle = tempfile.TemporaryFile("w+")
 
-    energytrace = subprocess.Popen(
-        [energytrace_cmd, str(duration)], stdout=output_handle, universal_newlines=True
-    )
+    if not duration:
+        print("Press Ctrl+C to stop measurement")
 
-    try:
-        if duration:
-            time.sleep(duration)
-        else:
-            print("Press Ctrl+C to stop measurement")
-            while True:
-                time.sleep(3600)
-    except KeyboardInterrupt:
-        energytrace.send_signal(subprocess.signal.SIGTERM)
+    if live_view:
+        import matplotlib.pyplot as plt
+
+        plt.style.use(matplotlib_theme)
+        max_y = 0
+        plt.ion()
+
+        timestamps = [0]
+        voltages = [0]
+        energy_values = [0]
+        power_values = [0]
+
+        plt.xlabel("Time [s]")
+        plt.ylabel("Power [W]")
+        (powerline,) = plt.plot(
+            timestamps, power_values, "r-", label="Power [W]", markersize=1
+        )
+        plt.show()
+
+        last_update = 0
+        energytrace = subprocess.Popen(
+            [energytrace_cmd, str(duration)],
+            stdout=subprocess.PIPE,
+            universal_newlines=True,
+        )
+
+        try:
+            for line in energytrace.stdout:
+                output_handle.write(line)
+
+                if line[0] == "#":
+                    continue
+                timestamp, current, voltage, energy = line.split()
+                timestamps.append(float(timestamp) / 1e6)
+                voltages.append(float(voltage) / 1e3)
+                energy_values.append(float(energy) / 1e9)
+
+                if duration and timestamps[-1] > duration + 5:
+                    break
+
+                if energy_values[-1] > energy_values[-2]:
+                    power_values.append(
+                        (energy_values[-1] - energy_values[-2])
+                        / (timestamps[-1] - timestamps[-2])
+                    )
+                else:
+                    power_values.append(np.nan)
+
+                if power_values[-1] > max_y:
+                    max_y = power_values[-1]
+
+                if live_history:
+                    timestamps = timestamps[-live_history:]
+                    voltages = voltages[-live_history:]
+                    energy_values = energy_values[-live_history:]
+                    power_values = power_values[-live_history:]
+
+                if timestamps[-1] - last_update > 0.1:
+                    update_start = time.time()
+                    powerline.set_data([timestamps, power_values])
+                    plt.xlim([timestamps[0], timestamps[-1]])
+                    plt.ylim([0, max_y + 0.1])
+                    plt.show()
+                    plt.pause(0.01)
+                    update_end = time.time()
+                    last_update = timestamps[-1] + update_end - update_start
+        except KeyboardInterrupt:
+            print("Stopping measurement")
+            energytrace.send_signal(subprocess.signal.SIGTERM)
+    else:
+        energytrace = subprocess.Popen(
+            [energytrace_cmd, str(duration)],
+            stdout=output_handle,
+            universal_newlines=True,
+        )
+
+        try:
+            if duration:
+                time.sleep(duration)
+            else:
+                while True:
+                    time.sleep(3600)
+        except KeyboardInterrupt:
+            print("Stopping measurement")
+            energytrace.send_signal(subprocess.signal.SIGTERM)
 
     energytrace.communicate(timeout=5)
 
@@ -342,6 +422,18 @@ def main():
         help="Log CPU and peripheral states as well as energy readings. Requires EnergyTrace++ support. Reduces the sample rate to about 1 kHz.",
     )
     parser.add_argument(
+        "--live-view",
+        action="store_true",
+        help="Plot live voltage/current data while the measurement is running. May cause lost samples at the end of the measurement.",
+    )
+    parser.add_argument(
+        "--live-history",
+        type=int,
+        metavar="N",
+        default=10000,
+        help="Show up to N past samples in the live view. Less history → lower live view overhead → higher update rate. Set to 0 for unlimited history.",
+    )
+    parser.add_argument(
         "duration", type=int, nargs="?", help="Measurement duration in seconds"
     )
 
@@ -369,10 +461,16 @@ def main():
             args.duration,
             libmsp430_path=args.libmsp430_path,
             energytrace_cmd="energytracepp",
+            live_view=args.live_view,
+            live_history=args.live_history,
         )
     else:
         log_data = measure_data(
-            args.save, args.duration, libmsp430_path=args.libmsp430_path
+            args.save,
+            args.duration,
+            libmsp430_path=args.libmsp430_path,
+            live_view=args.live_view,
+            live_history=args.live_history,
         )
 
     lines = log_data.split("\n")
@@ -603,6 +701,8 @@ def main():
 
     if args.plot:
         import matplotlib.pyplot as plt
+
+        plt.style.use(matplotlib_theme)
 
         if annotations[0]:
             fig, ax = plt.subplots()
