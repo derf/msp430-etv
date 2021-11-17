@@ -30,10 +30,10 @@ EnergyTrace performs measurements in intervals of about 270 µs. Each line
 contains data for one measurement interval. Measurement data consists of for
 readings:
 
-* Timestamps (µs) since start of the measurement,
-* Mean current (nA) over the last ten to thousand intervals,
-* Mean voltage (mV) with details unknown, and
-* Cumulative energy (nJ) since start of the measurement.
+1. Timestamps (µs) since start of the measurement,
+2. Mean current (nA) over the last ten to thousand intervals,
+3. Mean voltage (mV) with details unknown, and
+4. Cumulative energy (nJ) since start of the measurement.
 
 Note that the EnergyTrace hardware and firmware only measures time, voltage,
 and energy. Current readings are calculated by the MSP430 client library. Power

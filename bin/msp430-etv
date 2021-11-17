@@ -168,12 +168,16 @@ class PELT:
         return changepoints
 
 
-def measure_data(filename, duration, energytrace_cmd="energytrace"):
+def measure_data(
+    filename, duration, libmsp430_path=None, energytrace_cmd="energytrace"
+):
     # libmsp430.so must be available
-    if not "LD_LIBRARY_PATH" in os.environ:
-        os.environ[
-            "LD_LIBRARY_PATH"
-        ] = "{}/var/projects/msp430/MSP430Flasher_1.3.15".format(os.environ["HOME"])
+    if libmsp430_path is None:
+        libmsp430_path = "/opt/msp430/MSP430Flasher_1.3.20"
+    if "LD_LIBRARY_PATH" in os.environ:
+        os.environ["LD_LIBRARY_PATH"] += f":{libmsp430_path}"
+    else:
+        os.environ["LD_LIBRARY_PATH"] = libmsp430_path
 
     # https://ess.cs.uos.de/git/df/energytrace-util must be available
     if which(energytrace_cmd) is None:
@@ -279,6 +283,12 @@ def main():
         help="Export analysis results (e.g. changepoints) to JSON file",
     )
     parser.add_argument(
+        "--libmsp430-path",
+        metavar="DIRECTORY",
+        type=str,
+        help="Path to directory containing libmsp30.so",
+    )
+    parser.add_argument(
         "--skip",
         metavar="N",
         type=float,
@@ -355,10 +365,15 @@ def main():
                 log_data = f.read()
     elif args.with_hardware_states:
         log_data = measure_data(
-            args.save, args.duration, energytrace_cmd="energytracepp"
+            args.save,
+            args.duration,
+            libmsp430_path=args.libmsp430_path,
+            energytrace_cmd="energytracepp",
         )
     else:
-        log_data = measure_data(args.save, args.duration)
+        log_data = measure_data(
+            args.save, args.duration, libmsp430_path=args.libmsp430_path
+        )
 
     lines = log_data.split("\n")
     data_count = sum(map(lambda x: len(x) > 0 and x[0] != "#", lines))
@@ -523,7 +538,7 @@ def main():
     )
     smooth_power = running_mean(power_from_energy, 10)
 
-    if args.pelt:
+    if args.pelt is not None:
         power_changepoints = detect_changepoints(
             data[1:, 0] * 1e-6, power_from_energy, num_samples=args.pelt
         )
@@ -581,7 +596,7 @@ def main():
 
     if args.json_export:
         extra_data = dict()
-        if args.pelt:
+        if args.pelt is not None:
             extra_data["power_changepoints"] = power_changepoints
             extra_data["current_changepoints"] = current_changepoints
         export_json(args.json_export, extra_data)
@@ -674,7 +689,7 @@ def main():
                 label="mean(I, 10)",
                 markersize=1,
             )
-            if args.pelt:
+            if args.pelt is not None:
                 plt.vlines(
                     plot_changepoints_vlines(current_changepoints),
                     np.min(Y),
@@ -701,7 +716,7 @@ def main():
                 label="mean(P, 10)",
                 markersize=1,
             )
-            if args.pelt:
+            if args.pelt is not None:
                 plt.vlines(
                     plot_changepoints_vlines(power_changepoints),
                     np.min(Y),
