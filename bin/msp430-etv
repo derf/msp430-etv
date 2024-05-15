@@ -298,6 +298,20 @@ def export_json(filename, data=dict()):
         json.dump(data, f, cls=NpEncoder)
 
 
+def export_pgf(filename, data, power, smooth_power):
+    timestamp = data[1:, 0] * 1e-6
+    current = data[1:, 1] * 1e-9
+    voltage = data[1:, 2] * 1e-3
+
+    with open(filename, "w") as f:
+        print("timestamp voltage current power smoothpower mwsmoothpower", file=f)
+        for i in range(len(power)):
+            print(
+                f"{timestamp[i]} {voltage[i]} {current[i]} {power[i]} {smooth_power[i]} {smooth_power[i] * 1e3}",
+                file=f,
+            )
+
+
 def detect_changepoints(timestamps, trace, num_samples):
     pelt = PELT(trace, num_samples=num_samples)
     changepoints = pelt.get_changepoints()
@@ -361,6 +375,12 @@ def main():
         metavar="FILENAME",
         type=str,
         help="Export analysis results (e.g. changepoints) to JSON file",
+    )
+    parser.add_argument(
+        "--pgf-export",
+        metavar="FILENAME",
+        type=str,
+        help="Export plot data to PGF TXT file",
     )
     parser.add_argument(
         "--libmsp430-path",
@@ -496,7 +516,7 @@ def main():
         if total_energy < 0 and prev_total_energy > 0:
             energy_overflow_count += 1
         prev_total_energy = total_energy
-        total_energy += energy_overflow_count * (2 ** 32)
+        total_energy += energy_overflow_count * (2**32)
 
         if args.skip is not None and timestamp * 1e-6 < args.skip:
             skip_offset = i + 1
@@ -698,6 +718,9 @@ def main():
             extra_data["power_changepoints"] = power_changepoints
             extra_data["current_changepoints"] = current_changepoints
         export_json(args.json_export, extra_data)
+
+    if args.pgf_export:
+        export_pgf(args.pgf_export, data, power, smooth_power)
 
     if args.plot:
         import matplotlib.pyplot as plt
