@@ -27,7 +27,7 @@ that task.
 ## File Format
 
 EnergyTrace performs measurements in intervals of about 270 µs. Each line
-contains data for one measurement interval. Measurement data consists of for
+contains data for one measurement interval. Measurement data consists of four
 readings:
 
 1. Timestamps (µs) since start of the measurement,
